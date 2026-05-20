@@ -1,0 +1,53 @@
+{
+  "name": "windallay",
+  "version": "0.1.0",
+  "description": "WindAllay - AI Agent CLI powered by Ink",
+  "type": "module",
+  "bin": {
+    "windallay": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.tsx",
+    "build": "rolldown -c rolldown.config.ts",
+    "start": "node dist/index.js",
+    "typecheck": "oxlint --type-aware --type-check --tsconfig tsconfig.json src/",
+    "lint": "oxlint src/",
+    "format": "oxlint --fix src/",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@langchain/community": "^1.1.28",
+    "@langchain/core": "^1.1.46",
+    "@langchain/openai": "^1.4.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^13.1.0",
+    "conf": "^13.1.0",
+    "ink": "^6.8.0",
+    "ink-text-input": "^6.0.0",
+    "openai": "^6.38.0",
+    "react": "^19.2.6",
+    "uuid": "^11.1.0",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver-protocol": "^3.17.5",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.6",
+    "oxlint": "^1.66.0",
+    "oxlint-tsgolint": "^0.23.0",
+    "rolldown": "^1.0.1",
+    "tsx": "^4.19.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "cli",
+    "ink",
+    "agent",
+    "llm"
+  ],
+  "license": "MIT"
+}
