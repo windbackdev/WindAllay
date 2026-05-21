@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Text, Box } from 'ink';
 import { useInput } from 'ink';
 
@@ -13,6 +13,9 @@ interface Props {
 
 export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Props) {
   const [value, setValue] = useState('');
+  const [cursorPos, setCursorPos] = useState(0);
+  const cursorPosRef = useRef(0);
+  useEffect(() => { cursorPosRef.current = cursorPos; }, [cursorPos]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const stagedRef = useRef('');
   const historyRef = useRef<string[]>([]);
@@ -37,13 +40,28 @@ export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Prop
         stagedRef.current = '';
         const v = value.trim();
         setValue('');
+        setCursorPos(0);
         onSubmit(v);
       }
       return;
     }
 
+    if (key.leftArrow) {
+      setCursorPos((c) => Math.max(0, c - 1));
+      return;
+    }
+
+    if (key.rightArrow) {
+      setCursorPos((c) => Math.min(value.length, c + 1));
+      return;
+    }
+
     if (key.backspace || key.delete || input === '\x7f') {
-      setValue((v) => v.slice(0, -1));
+      const pos = cursorPosRef.current;
+      if (pos > 0) {
+        setValue(value.slice(0, pos - 1) + value.slice(pos));
+        setCursorPos(pos - 1);
+      }
       return;
     }
 
@@ -57,6 +75,7 @@ export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Prop
       idxRef.current = next;
       setHistoryIndex(next);
       setValue(h[next]);
+      setCursorPos(h[next].length);
       return;
     }
 
@@ -68,17 +87,20 @@ export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Prop
         idxRef.current = -1;
         setHistoryIndex(-1);
         setValue(stagedRef.current);
+        setCursorPos(stagedRef.current.length);
         stagedRef.current = '';
       } else {
         idxRef.current = prev;
         setHistoryIndex(prev);
         setValue(h[prev]);
+        setCursorPos(h[prev].length);
       }
       return;
     }
 
     if (key.escape) {
       setValue('');
+      setCursorPos(0);
       setHistoryIndex(-1);
       idxRef.current = -1;
       stagedRef.current = '';
@@ -87,28 +109,36 @@ export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Prop
 
     if (key.ctrl && input === 'u') {
       setValue('');
+      setCursorPos(0);
       return;
     }
 
     if (key.ctrl && input === 'w') {
-      setValue((v) => v.replace(/\s*\S+\s*$/, ''));
+      const pos = cursorPosRef.current;
+      if (pos > 0) {
+        const before = value.slice(0, pos);
+        const after = value.slice(pos);
+        const trimmed = before.replace(/\s*\S+\s*$/, '');
+        setValue(trimmed + after);
+        setCursorPos(trimmed.length);
+      }
       return;
     }
 
     if (input.length > 0 && !key.ctrl && !key.meta) {
-      setValue((v) => {
-        if (historyIndex !== -1) {
-          idxRef.current = -1;
-          setHistoryIndex(-1);
-        }
-        return v + input;
-      });
+      const pos = cursorPosRef.current;
+      if (historyIndex !== -1) {
+        idxRef.current = -1;
+        setHistoryIndex(-1);
+      }
+      setValue(value.slice(0, pos) + input + value.slice(pos));
+      setCursorPos(pos + input.length);
     }
   }, { isActive: focus && !disabled });
 
   const isActive = focus && !disabled;
-  const cursor = isActive ? '▎' : '';
-  const displayValue = value + cursor;
+  const cursorChar = isActive ? '▎' : '';
+  const displayValue = value.slice(0, cursorPos) + cursorChar + value.slice(cursorPos);
   const promptColor = disabled ? 'gray' : 'cyan';
   const statusText = disabled ? '⏳ AI is thinking...' : (placeholder || 'Type a message...');
 
