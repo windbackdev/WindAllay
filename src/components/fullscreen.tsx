@@ -7,7 +7,7 @@ import { useTerminalSize } from './responsive.js';
 export function FullScreen({ children, justifyContent = 'center' }: { children: React.ReactNode; justifyContent?: 'center' | 'flex-start' | 'flex-end' | 'space-between' | 'space-around' }) {
   const { rows } = useTerminalSize();
   return (
-    <Box height={rows} width="100%" flexDirection="column" alignItems="center" justifyContent={justifyContent}>
+    <Box minHeight={rows} width="100%" flexDirection="column" alignItems="center" justifyContent={justifyContent}>
       {children}
     </Box>
   );

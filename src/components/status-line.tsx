@@ -1,8 +1,9 @@
 import React from 'react';
-import { Text, Box } from 'ink';
+import { Box } from 'ink';
 import { ContextStats } from '../context/monitor.js';
-import { t } from '../utils/i18n.js';
 import { useTerminalSize } from './responsive.js';
+import { StatusMessage } from './ui/status-message.js';
+import { ContextMeter } from './ui/token-usage.js';
 
 interface Props {
   model: string;
@@ -12,62 +13,47 @@ interface Props {
   executingTool?: string | null;
 }
 
-const STATUS_KEYS: Record<string, string> = {
-  idle: 'chat.ready',
-  thinking: 'chat.thinking',
-  streaming: 'chat.streaming',
-  error: 'chat.error',
-  tool_call: 'chat.toolCall',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  idle: 'green',
-  thinking: 'yellow',
-  streaming: 'cyan',
-  error: 'red',
-  tool_call: 'magenta',
-};
-
-const SPINNER_FRAMES: Record<string, string[]> = {
-  thinking: ['◐', '◓', '◑', '◒'],
-  streaming: ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█', '▇', '▆', '▅', '▄', '▃', '▂', '▁'],
-  tool_call: ['◴', '◷', '◶', '◵'],
+const STATUS_MAP: Record<string, { variant: 'loading' | 'info' | 'success' | 'error' | 'pending'; label: string }> = {
+  idle: { variant: 'success', label: 'Ready' },
+  thinking: { variant: 'loading', label: 'Thinking' },
+  streaming: { variant: 'info', label: 'Streaming' },
+  error: { variant: 'error', label: 'Error' },
+  tool_call: { variant: 'pending', label: 'Tool' },
 };
 
 export function StatusLine({ model, contextStats, status, messageCount, executingTool }: Props) {
-  const { isNarrow } = useTerminalSize();
-  const color = STATUS_COLORS[status] || 'white';
-  let label = t(STATUS_KEYS[status] || status);
-  if (executingTool) label = `⚙ ${executingTool}`;
-  const frames = SPINNER_FRAMES[status];
-  const spinner = frames ? frames[Math.floor(Date.now() / 150) % frames.length] : '';
-
-  const items: { text: string; color: string }[] = [
-    { text: `${spinner} ${label}`, color },
-  ];
-
-  if (!isNarrow) {
-    items.push({ text: `| ${model}`, color: 'cyan' });
-    items.push({ text: `| ${t('chat.msgs')}: ${messageCount}`, color: 'white' });
-    if (contextStats) {
-      items.push({
-        text: `| ${t('chat.ctx')}: ${contextStats.formatted}`,
-        color: contextStats.isNearLimit ? 'yellow' : 'gray',
-      });
-    }
-  } else {
-    items.push({ text: `| ${model.split('-')[0]}`, color: 'cyan' });
-  }
+  const { columns } = useTerminalSize();
+  const cfg = STATUS_MAP[status] || { variant: 'info' as const, label: status };
+  const label = executingTool ? `⚙ ${executingTool}` : cfg.label;
+  const isNarrow = columns < 60;
 
   return (
-    <Box>
-      <Text>
-        {items.map((item, i) => (
-          <Text key={i} color={item.color}>
-            {item.text}{' '}
-          </Text>
-        ))}
-      </Text>
+    <Box flexDirection={isNarrow ? 'column' : 'row'} gap={1} width="100%">
+      <Box>
+        <StatusMessage variant={cfg.variant}>{label}</StatusMessage>
+      </Box>
+      {!isNarrow && (
+        <>
+          <Box>
+            <StatusMessage variant="info" icon="●">{model.split('-')[0]}</StatusMessage>
+          </Box>
+          {contextStats && (
+            <Box flexGrow={1}>
+              <ContextMeter
+                used={contextStats.totalTokens}
+                limit={contextStats.maxTokens}
+                width={15}
+                showPercent={true}
+                warnAt={75}
+                criticalAt={90}
+              />
+            </Box>
+          )}
+          <Box>
+            <StatusMessage variant="info" icon="💬">{String(messageCount)}</StatusMessage>
+          </Box>
+        </>
+      )}
     </Box>
   );
 }

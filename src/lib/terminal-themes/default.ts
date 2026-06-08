@@ -1,0 +1,32 @@
+import type { Theme } from '../../components/ui/theme-provider.js';
+
+export const defaultTheme: Theme = {
+  name: 'default',
+  colors: {
+    primary: '#0ea5e9',
+    primaryForeground: '#ffffff',
+    secondary: '#a78bfa',
+    secondaryForeground: '#ffffff',
+    accent: '#22d3ee',
+    accentForeground: '#000000',
+    success: '#22c55e',
+    successForeground: '#ffffff',
+    warning: '#eab308',
+    warningForeground: '#000000',
+    error: '#ef4444',
+    errorForeground: '#ffffff',
+    info: '#3b82f6',
+    infoForeground: '#ffffff',
+    background: '#0f172a',
+    foreground: '#e2e8f0',
+    muted: '#475569',
+    mutedForeground: '#94a3b8',
+    border: '#334155',
+    focusRing: '#0ea5e9',
+    selection: '#0ea5e9',
+    selectionForeground: '#ffffff',
+  },
+  spacing: { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 6: 6, 8: 8 },
+  typography: { bold: true, sm: '12px', base: '14px', lg: '16px', xl: '20px' },
+  border: { style: 'round', color: '#334155', focusColor: '#0ea5e9' },
+};

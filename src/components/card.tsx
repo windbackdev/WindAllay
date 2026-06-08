@@ -1,8 +1,15 @@
 import React from 'react';
 import { Text, Box } from 'ink';
 import { useTerminalSize } from './responsive.js';
+import { Card as TermCard } from './ui/card.js';
 
 type CardColor = 'cyan' | 'green' | 'yellow' | 'magenta' | 'red' | 'blue' | 'white' | 'gray';
+
+const COLOR_MAP: Record<string, string> = {
+  cyan: '#0ea5e9', green: '#22c55e', yellow: '#eab308',
+  magenta: '#a855f7', red: '#ef4444', blue: '#3b82f6',
+  white: '#e2e8f0', gray: '#64748b',
+};
 
 interface CardProps {
   children: React.ReactNode;
@@ -13,113 +20,64 @@ interface CardProps {
   padding?: number;
   marginBottom?: number;
   fillWidth?: boolean;
+  borderStyle?: 'round' | 'single' | 'bold' | 'double';
 }
 
-export function Card({
-  children,
-  borderColor = 'cyan',
-  selected,
-  width,
-  height,
-  padding = 1,
-  marginBottom = 1,
-  fillWidth,
-}: CardProps) {
+export function Card({ children, borderColor = 'cyan', selected, width, padding = 1, marginBottom = 1, fillWidth }: CardProps) {
   const { columns } = useTerminalSize();
   const cardWidth = fillWidth ? undefined : (width ?? Math.min(columns - 4, 60));
+  const bc = selected ? COLOR_MAP[borderColor] : COLOR_MAP.gray;
 
   return (
-    <Box
-      borderStyle="round"
-      borderColor={selected ? borderColor : 'gray'}
-      paddingX={padding}
-      paddingY={padding}
-      width={cardWidth}
-      height={height}
-      flexDirection="column"
-      marginBottom={marginBottom}
-    >
-      {children}
+    <Box marginBottom={marginBottom} width={cardWidth}>
+      <TermCard borderColor={bc} borderStyle="round" paddingX={padding} paddingY={padding}>
+        {children}
+      </TermCard>
     </Box>
   );
 }
 
-interface CardHeaderProps {
-  icon?: string;
-  title: string;
-  subtitle?: string;
-  titleColor?: CardColor;
-  rightContent?: React.ReactNode;
-}
-
-export function CardHeader({ icon, title, subtitle, titleColor = 'white', rightContent }: CardHeaderProps) {
+export function CardHeader({ icon, title, subtitle, titleColor = 'white', rightContent }: {
+  icon?: string; title: string; subtitle?: string; titleColor?: CardColor; rightContent?: React.ReactNode;
+}) {
   return (
     <Box marginBottom={subtitle ? 0 : 0}>
       <Box flexGrow={1}>
-        <Text bold color={titleColor}>
+        <Text bold color={COLOR_MAP[titleColor]}>
           {icon ? `${icon} ` : ''}{title}
         </Text>
-        {subtitle && (
-          <Text dimColor> — {subtitle}</Text>
-        )}
+        {subtitle && <Text dimColor> — {subtitle}</Text>}
       </Box>
-      {rightContent && (
-        <Box>{rightContent}</Box>
-      )}
+      {rightContent && <Box>{rightContent}</Box>}
     </Box>
   );
 }
 
-interface CardBodyProps {
-  children: React.ReactNode;
-  padding?: boolean;
+export function CardBody({ children, padding = true }: { children: React.ReactNode; padding?: boolean }) {
+  return <Box marginLeft={padding ? 1 : 0} flexDirection="column">{children}</Box>;
 }
 
-export function CardBody({ children, padding = true }: CardBodyProps) {
-  return (
-    <Box marginLeft={padding ? 1 : 0} flexDirection="column">
-      {children}
-    </Box>
-  );
+export function CardFooter({ children }: { children: React.ReactNode }) {
+  return <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>{children}</Box>;
 }
 
-interface CardFooterProps {
-  children: React.ReactNode;
-}
-
-export function CardFooter({ children }: CardFooterProps) {
-  return (
-    <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-      {children}
-    </Box>
-  );
-}
-
-// Divider line inside a card
-export function CardDivider() {
+export function CardDivider({ width }: { width?: number }) {
+  const { columns } = useTerminalSize();
+  const len = Math.min((width ?? columns) - 4, 60);
   return (
     <Box marginY={1}>
-      <Text dimColor>{'─'.repeat(40)}</Text>
+      <Text dimColor>{'─'.repeat(Math.max(10, len))}</Text>
     </Box>
   );
 }
 
-// A menu item card — used in main menu
-interface MenuCardProps {
-  icon: string;
-  label: string;
-  description: string;
-  selected: boolean;
-  badge?: string;
-  badgeColor?: CardColor;
-  onClick?: () => void;
-}
-
-export function MenuCard({ icon, label, description, selected, badge, badgeColor = 'green' }: MenuCardProps) {
+export function MenuCard({ icon, label, description, selected, badge, badgeColor = 'green' }: {
+  icon: string; label: string; description: string; selected: boolean;
+  badge?: string; badgeColor?: CardColor; onClick?: () => void;
+}) {
   const { isNarrow } = useTerminalSize();
-
   return (
-    <Card borderColor={selected ? 'cyan' : 'gray'} selected={selected} padding={1} marginBottom={0}>
+    <Card borderColor={selected ? 'cyan' : 'gray'} padding={1} marginBottom={0}>
       <Box>
         <Box flexGrow={1}>
           <Box marginRight={1}>
@@ -134,82 +92,38 @@ export function MenuCard({ icon, label, description, selected, badge, badgeColor
             )}
           </Box>
         </Box>
-        {badge && (
-          <Box>
-            <Text color={badgeColor}>{badge}</Text>
-          </Box>
-        )}
+        {badge && <Box><Text color={COLOR_MAP[badgeColor]}>{badge}</Text></Box>}
       </Box>
     </Card>
   );
 }
 
-// An info/status card
-interface InfoCardProps {
-  title: string;
-  children: React.ReactNode;
-  borderColor?: CardColor;
-}
-
-export function InfoCard({ title, children, borderColor = 'cyan' }: InfoCardProps) {
+export function InfoCard({ title, children, borderColor = 'cyan' }: {
+  title: string; children: React.ReactNode; borderColor?: CardColor;
+}) {
   return (
     <Card borderColor={borderColor} padding={1}>
       <CardHeader title={title} titleColor={borderColor} />
-      <CardBody>
-        {children}
-      </CardBody>
+      <CardBody>{children}</CardBody>
     </Card>
   );
 }
 
-// A message card for chat
-interface MessageCardProps {
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-  timestamp?: string;
-  toolCalls?: Array<{ name: string; args: string }>;
-  toolCallId?: string;
-  children?: React.ReactNode;
-}
-
-const ROLE_CONFIG: Record<string, { color: CardColor; icon: string; label: string }> = {
-  user: { color: 'cyan', icon: '▶', label: 'You' },
-  assistant: { color: 'green', icon: '●', label: 'WindAllay' },
-  system: { color: 'yellow', icon: '◆', label: 'System' },
-  tool: { color: 'magenta', icon: '⚙', label: 'Tool' },
-};
-
-export function MessageCard({ role, content, timestamp, toolCalls, toolCallId, children }: MessageCardProps) {
-  const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.system;
-  const { columns } = useTerminalSize();
-
-  if (role === 'tool') {
-    return (
-      <Card borderColor={cfg.color} padding={1} width={columns - 2} marginBottom={0}>
-        <Box flexDirection="column">
-          {children || (
-            <>
-              <Box>
-                <Text>
-                  <Text color={cfg.color}>{cfg.icon} </Text>
-                  <Text dimColor>{cfg.label}</Text>
-                  {toolCallId && <Text dimColor> ({toolCallId.slice(-12)})</Text>}
-                </Text>
-              </Box>
-              {content && (
-                <Box marginLeft={1}>
-                  <Text wrap="wrap">{content}</Text>
-                </Box>
-              )}
-            </>
-          )}
-        </Box>
-      </Card>
-    );
-  }
+/** @deprecated Use ChatMessage from termcn instead */
+export function MessageCard({ role, content, timestamp, toolCalls, toolCallId, children }: {
+  role: 'user' | 'assistant' | 'system' | 'tool'; content: string; timestamp?: string;
+  toolCalls?: Array<{ name: string; args: string }>; toolCallId?: string; children?: React.ReactNode;
+}) {
+  void toolCallId;
+  const cfg = {
+    user: { color: 'cyan' as CardColor, icon: '▶', label: 'You' },
+    assistant: { color: 'green' as CardColor, icon: '●', label: 'WindAllay' },
+    system: { color: 'yellow' as CardColor, icon: '◆', label: 'System' },
+    tool: { color: 'magenta' as CardColor, icon: '⚙', label: 'Tool' },
+  }[role] || { color: 'yellow' as CardColor, icon: '◆', label: 'System' };
 
   return (
-    <Card borderColor={cfg.color} padding={1} width={columns - 2} marginBottom={0}>
+    <Card borderColor={cfg.color} padding={1} fillWidth marginBottom={0}>
       <Box flexDirection="column">
         <Box marginBottom={content ? 1 : 0}>
           <Text>
@@ -219,15 +133,9 @@ export function MessageCard({ role, content, timestamp, toolCalls, toolCallId, c
           </Text>
         </Box>
         {content && (
-          <Box marginLeft={1}>
-            <Text wrap="wrap">{content}</Text>
-          </Box>
+          <Box marginLeft={1}><Text wrap="wrap">{content}</Text></Box>
         )}
-        {children && (
-          <Box marginLeft={1} marginTop={1}>
-            {children}
-          </Box>
-        )}
+        {children && <Box marginLeft={1} marginTop={1}>{children}</Box>}
         {toolCalls && toolCalls.length > 0 && (
           <Box marginLeft={1} marginTop={1} flexDirection="column">
             {toolCalls.map((tc, i) => (

@@ -13,6 +13,9 @@ import { getModels } from './models/cache.js';
 import { getSkillRegistry } from './skills/registry.js';
 import { getMCPServerManager } from './mcp/mcp-client.js';
 import { refreshMCPTools } from './tools/mcp-tools.js';
+import { ThemeProvider } from './components/ui/theme-provider.js';
+import { getConfig } from './utils/config.js';
+
 
 interface Props {
   options?: {
@@ -70,13 +73,17 @@ export function App({ options }: Props) {
       mcp.loadConfigs();
       await mcp.connectAll();
       refreshMCPTools();
+
+      
     };
     init();
   }, []);
 
   return (
     <TerminalSizeProvider>
-      <AppContent options={options} page={page} setPage={setPage} />
+      <ThemeProvider>
+        <AppContent options={options} page={page} setPage={setPage} />
+      </ThemeProvider>
     </TerminalSizeProvider>
   );
 }

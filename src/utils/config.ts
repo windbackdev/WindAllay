@@ -14,6 +14,7 @@ export interface WindAllayConfig {
   temperature: number;
   language: 'en' | 'zh';
   savedProviders: string;
+  compactionThreshold: number;
 }
 
 const DEFAULT_CONFIG: WindAllayConfig = {
@@ -32,6 +33,7 @@ Follow the user's instructions carefully and use tools when needed.`,
   temperature: 0.7,
   language: 'en',
   savedProviders: '[]',
+  compactionThreshold: 70,
 };
 
 let _store: Conf<WindAllayConfig> | null = null;

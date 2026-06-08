@@ -3,6 +3,7 @@ import { Text, Box } from 'ink';
 import { useInput } from 'ink';
 import { FetchedModel } from '../models/fetcher.js';
 import { useTerminalSize } from './responsive.js';
+import { t } from '../utils/i18n.js';
 
 interface Props {
   models: FetchedModel[];
@@ -46,7 +47,7 @@ export function ModelPicker({ models, activeModel, onSelect, onClose }: Props) {
   return (
     <Box width={width} flexDirection="column" marginX={1}>
       <Box borderStyle="round" borderColor="cyan" paddingX={1} paddingY={0}>
-        <Text bold color="cyan"> Select Model ({total})</Text>
+        <Text bold color="cyan"> {t('models.title', total)}</Text>
         <Text dimColor> | ↑↓PgUpPgDn | ↵ | Esc</Text>
       </Box>
 

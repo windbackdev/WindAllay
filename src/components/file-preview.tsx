@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, Box } from 'ink';
+import { t } from '../utils/i18n.js';
 
 interface Props {
   filePath: string;
@@ -50,7 +51,7 @@ export function FilePreview({ filePath, content, language, error }: Props) {
           <Text color="cyan">● </Text>
           <Text bold>{filePath}</Text>
           <Text dimColor>  {lang}</Text>
-          <Text dimColor>  {lineCount} line{lineCount !== 1 ? 's' : ''}</Text>
+          <Text dimColor>  {t('file.lines', lineCount)}</Text>
         </Text>
       </Box>
       <Box flexDirection="column" marginLeft={1}>
@@ -66,7 +67,7 @@ export function FilePreview({ filePath, content, language, error }: Props) {
         {showTruncated && (
           <Box>
             <Text dimColor>{' '.repeat(lineNumWidth)} │ </Text>
-            <Text dimColor>[... {lineCount - maxPreviewLines} more lines]</Text>
+            <Text dimColor>{t('file.truncated', lineCount - maxPreviewLines)}</Text>
           </Box>
         )}
       </Box>

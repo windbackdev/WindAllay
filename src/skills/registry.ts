@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface Skill {
@@ -9,11 +9,12 @@ export interface Skill {
   filePath: string;
 }
 
-
+const FRONTMATTER_REGEX = /^---\n([\s\S]*?)\n---\n/;
 
 export class SkillRegistry {
   private skills = new Map<string, Skill>();
 
+  /** Load skills from a flat directory of .md / .skill.md files */
   loadFromDir(dirPath: string): void {
     if (!existsSync(dirPath)) return;
 
@@ -23,7 +24,7 @@ export class SkillRegistry {
         const filePath = join(dirPath, entry.name);
         try {
           const skill = this.parseSkillFile(filePath);
-          if (skill) {
+          if (skill && !this.skills.has(skill.name)) {
             this.skills.set(skill.name, skill);
           }
         } catch (err) {
@@ -33,17 +34,77 @@ export class SkillRegistry {
     }
   }
 
-  private parseSkillFile(filePath: string): Skill | null {
+  /**
+   * Load skills from subdirectory structure: baseDir/<skill-name>/SKILL.md
+   * The directory name becomes the skill name.
+   * SKILL.md frontmatter can override name/description.
+   */
+  loadFromSkillDirs(baseDir: string): void {
+    if (!existsSync(baseDir)) return;
+
+    const entries = readdirSync(baseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillDir = join(baseDir, entry.name);
+      const skillFile = join(skillDir, 'SKILL.md');
+      if (existsSync(skillFile) && statSync(skillFile).isFile()) {
+        try {
+          const skill = this.parseSkillFile(skillFile, entry.name);
+          if (skill && !this.skills.has(skill.name)) {
+            this.skills.set(skill.name, skill);
+          }
+        } catch (err) {
+          console.error(`Failed to load skill from ${skillFile}`, err);
+        }
+      }
+    }
+  }
+
+  /**
+   * Parse a SKILL.md file into a Skill object.
+   * Supports YAML frontmatter (--- blocks) for name/description overrides.
+   * @param filePath - path to the .md file
+   * @param defaultName - fallback name (used for directory-based skills)
+   */
+  private parseSkillFile(filePath: string, defaultName?: string): Skill | null {
     const content = readFileSync(filePath, 'utf-8');
-    const name = filePath.split(/[\\/]/).pop()?.replace(/\.(skill\.)?md$/, '') ?? 'unknown';
-    const description = `Skill loaded from ${filePath}`;
+    let instructions = content;
+    let name: string | undefined;
+    let description: string | undefined;
 
-    const lines = content.split('\n');
+    // Extract YAML frontmatter
+    const fmMatch = content.match(FRONTMATTER_REGEX);
+    if (fmMatch) {
+      const fmLines = fmMatch[1].split('\n');
+      for (const line of fmLines) {
+        const [key, ...rest] = line.split(':').map((s) => s.trim());
+        if (key === 'name' && rest.length > 0) name = rest.join(':').trim();
+        if (key === 'description' && rest.length > 0) description = rest.join(':').trim();
+      }
+      // Strip frontmatter from instructions
+      instructions = content.slice(fmMatch[0].length);
+    }
+
+    // Derive name: frontmatter > defaultName > filename
+    if (!name) {
+      if (defaultName) {
+        name = defaultName;
+      } else {
+        name = filePath.split(/[\\/]/).pop()?.replace(/\.(skill\.)?md$/i, '') ?? 'unknown';
+      }
+    }
+
+    // Derive description
+    if (!description) {
+      description = `Skill loaded from ${filePath}`;
+    }
+
+    // Parse ## Tools section
     const tools: string[] = [];
-
+    const lines = instructions.split('\n');
     let foundTools = false;
     for (const line of lines) {
-      if (line.startsWith('### Tools')) {
+      if (line.startsWith('### Tools') || line.startsWith('## Tools')) {
         foundTools = true;
         continue;
       }
@@ -67,7 +128,7 @@ export class SkillRegistry {
     return {
       name,
       description,
-      instructions: content,
+      instructions,
       tools: tools.length > 0 ? tools : undefined,
       filePath,
     };

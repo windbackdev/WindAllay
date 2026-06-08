@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, Box } from 'ink';
+import { t } from '../utils/i18n.js';
 
 interface Props {
   children?: React.ReactNode;
@@ -26,9 +27,8 @@ export function CollapsibleBox({ children, maxLines = 15, text, label }: Props) 
         <Text wrap="wrap">{visible}</Text>
         <Box>
           <Text dimColor>
-            {`[... ${hidden} more line${hidden > 1 ? 's' : ''}] `}
+            {`[... ${hidden} more line${hidden > 1 ? 's' : ''}]`}
           </Text>
-          <Text color="cyan">{label ?? 'press m to expand'}</Text>
         </Box>
       </Box>
     );

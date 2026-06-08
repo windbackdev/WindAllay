@@ -23,15 +23,20 @@ Always follow these instructions carefully:
 
 export function loadSkills(): Skill[] {
   const config = getConfig();
-  const skillsDir = config.skillsDir || join(process.cwd(), 'skills');
-
-  if (!existsSync(skillsDir)) {
-    mkdirSync(skillsDir, { recursive: true });
-    writeFileSync(join(skillsDir, 'example.skill.md'), EXAMPLE_SKILL, 'utf-8');
-  }
-
   const registry = getSkillRegistry();
-  registry.loadFromDir(skillsDir);
+
+  // 1. Load from flat skills/ directory (backward-compatible)
+  const flatDir = config.skillsDir || join(process.cwd(), 'skills');
+  if (!existsSync(flatDir)) {
+    mkdirSync(flatDir, { recursive: true });
+    writeFileSync(join(flatDir, 'example.skill.md'), EXAMPLE_SKILL, 'utf-8');
+  }
+  registry.loadFromDir(flatDir);
+
+  // 2. Auto-load from .windallay/skills/<name>/SKILL.md (directory-based)
+  const dotDir = join(process.cwd(), '.windallay', 'skills');
+  registry.loadFromSkillDirs(dotDir);
+
   return registry.getAll();
 }
 

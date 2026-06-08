@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Text, Box } from 'ink';
 import { useInput } from 'ink';
+import { t } from '../utils/i18n.js';
 
 const MAX_HISTORY = 100;
 
@@ -140,7 +141,7 @@ export function InputBox({ onSubmit, disabled, placeholder, focus = true }: Prop
   const cursorChar = isActive ? '▎' : '';
   const displayValue = value.slice(0, cursorPos) + cursorChar + value.slice(cursorPos);
   const promptColor = disabled ? 'gray' : 'cyan';
-  const statusText = disabled ? '⏳ AI is thinking...' : (placeholder || 'Type a message...');
+  const statusText = disabled ? t('input.thinking') : (placeholder || t('input.placeholder'));
 
   return (
     <Box marginTop={0}>

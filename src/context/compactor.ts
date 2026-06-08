@@ -111,10 +111,11 @@ export async function compactMessages(
   messages: Message[],
   contextLimit: number,
   provider: { chat(req: { messages: Message[]; maxTokens?: number }): AsyncGenerator<StreamChunk> },
-): Promise<{ messages: Message[]; summary: string | null }> {
+  force = false,
+): Promise<{ messages: Message[]; summary: string | null; tokensSaved?: number }> {
   const plan = shouldCompact(messages, contextLimit);
-  if (!plan.shouldCompact || plan.compactableMessages.length === 0) {
-    return { messages, summary: null };
+  if ((!plan.shouldCompact && !force) || plan.compactableMessages.length === 0) {
+    return { messages, summary: null, tokensSaved: 0 };
   }
 
   const compactableContent = plan.compactableMessages
@@ -153,9 +154,30 @@ export async function compactMessages(
     content: `--- Compressed Context ---\nPrevious conversation summary:\n${summary}\n--- End Compressed Context ---`,
   };
 
+  const originalTokens = countTotalTokens(messages);
   const result = [summaryMsg, ...plan.tailMessages];
+  const newTokens = countTotalTokens(result);
+  const tokensSaved = originalTokens - newTokens;
 
-  return { messages: result, summary };
+  return { messages: result, summary, tokensSaved: Math.max(0, tokensSaved) };
+}
+
+/**
+ * Force-compact messages right now, regardless of threshold.
+ * Used by /compact command.
+ */
+export async function compactNow(
+  messages: Message[],
+  provider: { chat(req: { messages: Message[]; maxTokens?: number }): AsyncGenerator<StreamChunk> },
+  contextLimit?: number,
+): Promise<{ messages: Message[]; summary: string | null; tokensSaved: number }> {
+  const limit = contextLimit ?? 128000;
+  const result = await compactMessages(messages, limit, provider, true);
+  return {
+    messages: result.messages,
+    summary: result.summary,
+    tokensSaved: result.tokensSaved ?? 0,
+  };
 }
 
 export function pruneToolOutputs(

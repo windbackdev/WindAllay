@@ -36,7 +36,7 @@ export function Dialog({ title, initialValue = '', isSecret, onConfirm, onCancel
           value={value}
           onChange={setValue}
           onSubmit={onConfirm}
-          placeholder="input value..."
+          placeholder={t('provider.placeholder')}
           mask={isSecret ? '•' : undefined}
         />
       </Box>

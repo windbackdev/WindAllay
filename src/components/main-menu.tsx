@@ -67,11 +67,10 @@ export function MainMenu({ onNavigate }: Props) {
           onSelect={(item) => onNavigate(item.id)}
           renderItem={(item, _i, isSelected) => (
             <Box
-              borderStyle="round"
+              borderStyle="bold"
               borderColor={isSelected ? 'cyan' : 'gray'}
-              paddingX={0}
-              paddingY={0}
-              height={3}
+              paddingX={1}
+              paddingY={1}
               width="100%"
             >
               <Box flexGrow={1} justifyContent="center" alignItems="center">

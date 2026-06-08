@@ -87,8 +87,22 @@ export class ToolExecutor {
     _defs: ToolDefinition[]
   ): { isConcurrencySafe: boolean; calls: ToolCallRequest[] }[] {
     const isConcurrencySafe = (name: string): boolean => {
-      const readOnlyTools = ['read', 'read_multiple', 'glob', 'grep', 'web_search', 'web_fetch'];
-      return readOnlyTools.includes(name) || name.startsWith('mcp_');
+      // Read-only builtins + all MCP tools are safe to run concurrently
+      const readOnlyTools = new Set([
+        'read', 'read_multiple', 'glob', 'grep',
+        'web_search', 'web_fetch',
+        'form_status', 'todo_list',
+      ]);
+      if (readOnlyTools.has(name)) return true;
+      if (name.startsWith('mcp_')) {
+        // MCP tools: check if the tool name suggests it's read-only
+        const readOnlyPrefixes = ['mcp_read_', 'mcp_list_', 'mcp_search_', 'mcp_get_'];
+        return readOnlyPrefixes.some((p) => name.startsWith(p));
+      }
+      // Check registry for tool source info
+      const info = this.registry.getInfo(name);
+      if (!info) return false;
+      return false;
     };
 
     const batches: { isConcurrencySafe: boolean; calls: ToolCallRequest[] }[] = [];

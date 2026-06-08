@@ -4,6 +4,7 @@ import { CHAT_TOOL_DEFS, CHAT_TOOL_HANDLERS } from '../projects/chat-tools.js';
 import { truncateOutput } from './truncate.js';
 import { getToolHookManager } from './types.js';
 import { formatToolError } from './errors.js';
+import { normalizeArgs, validateArgs } from './arg-utils.js';
 
 export interface ToolContext {
   cwd: string;
@@ -60,13 +61,24 @@ export class ToolRegistry {
     }
 
     try {
+      // 1. Normalize arguments — safely parse JSON, coerce types
+      const normalized = normalizeArgs(args, tool.def);
+
+      // 2. Validate arguments against schema
+      const validationError = validateArgs(normalized, tool.def);
+      if (validationError) {
+        return JSON.stringify({ error: validationError });
+      }
+
+      // 3. Run pre-hooks
       const hooks = getToolHookManager();
-      const preResult = await hooks.runPreHooks(name, args, ctx);
+      const preResult = await hooks.runPreHooks(name, normalized, ctx);
       if (!preResult.allowed) {
         return JSON.stringify({ error: preResult.reason ?? `Tool ${name} not allowed` });
       }
-      const execArgs = preResult.modifiedArgs ?? args;
+      const execArgs = preResult.modifiedArgs ?? normalized;
 
+      // 4. Execute handler
       const raw = await tool.handler(execArgs, ctx);
 
       let result = raw;

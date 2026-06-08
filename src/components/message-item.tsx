@@ -1,14 +1,34 @@
 import React from 'react';
 import { Text, Box } from 'ink';
-import { MessageCard } from './card.js';
 import { Message } from '../providers/types.js';
 import { renderMarkdown } from '../utils/markdown.js';
 import { CollapsibleBox } from './collapsible.js';
 import { FilePreview } from './file-preview.js';
+import { ChatMessage } from './ui/chat-message.js';
+import { ToolCall } from './ui/tool-call.js';
 
 interface Props {
   message: Message;
   isLast?: boolean;
+}
+
+/** Map OpenAI role to ChatMessage sender */
+function mapSender(role: string): 'user' | 'assistant' | 'system' | 'error' {
+  if (role === 'user') return 'user';
+  if (role === 'assistant') return 'assistant';
+  if (role === 'system') return 'system';
+  return 'assistant';
+}
+
+/** Map role to display name */
+function roleName(role: string): string {
+  switch (role) {
+    case 'user': return 'You';
+    case 'assistant': return 'WindAllay';
+    case 'system': return 'System';
+    case 'tool': return 'Tool';
+    default: return role;
+  }
 }
 
 function parseToolResult(content: string): {
@@ -55,10 +75,10 @@ function parseToolResult(content: string): {
 
     return {
       kind: 'terminal',
-      title: exitCode === 0 ? 'Success' : `Exit code ${exitCode}`,
+      title: exitCode === 0 ? `$ ${parsed.command || 'command'}` : `Exit ${exitCode}`,
       body: (
         <Box flexDirection="column">
-          <CollapsibleBox maxLines={15} text={output} label="expand" />
+          <CollapsibleBox maxLines={15} text={output} />
           {stderr && exitCode !== 0 && (
             <Text color="red">stderr: {stderr}</Text>
           )}
@@ -71,7 +91,7 @@ function parseToolResult(content: string): {
     return {
       kind: 'raw',
       title: 'Content',
-      body: <CollapsibleBox maxLines={15} text={parsed.content} label="expand" />,
+      body: <CollapsibleBox maxLines={15} text={parsed.content} />,
     };
   }
 
@@ -89,56 +109,67 @@ export function MessageItem({ message }: Props) {
       ? JSON.stringify(message.content)
       : '';
 
-  const role = message.role as 'user' | 'assistant' | 'system' | 'tool';
+  const role = message.role as string;
 
+  // --- Tool result messages ---
   if (role === 'tool') {
     const result = parseToolResult(content);
-    const kindColor = result.kind === 'error' ? 'red' : result.kind === 'file' ? 'cyan' : result.kind === 'terminal' ? 'green' : 'magenta';
 
     return (
-      <MessageCard
-        role="tool"
-        content=""
-        toolCallId={(message as any).tool_call_id}
-      >
-        <Box flexDirection="column">
-          <Box>
-            <Text>
-              <Text color={kindColor}>{result.kind === 'error' ? '✗' : result.kind === 'file' ? '○' : result.kind === 'terminal' ? '$' : '⚙'} </Text>
-              <Text bold>{result.title}</Text>
-            </Text>
-          </Box>
-          <Box marginLeft={1} marginTop={0}>
-            {result.body}
-          </Box>
+      <Box marginLeft={2} marginBottom={1} flexDirection="column">
+        <ToolCall
+          name={result.title}
+          status={result.kind === 'error' ? 'error' : 'success'}
+          defaultCollapsed={false}
+          collapsible={false}
+        />
+        <Box marginLeft={2}>
+          {result.body}
         </Box>
-      </MessageCard>
+      </Box>
     );
   }
 
+  // --- Assistant message with tool calls ---
+  if (role === 'assistant' && (message as any).tool_calls) {
+    const toolCalls = (message as any).tool_calls.map((tc: any) => ({
+      name: tc.function?.name || 'unknown',
+      args: (() => { try { return JSON.parse(tc.function?.arguments || '{}'); } catch { return {}; } })(),
+    }));
+
+    return (
+      <Box flexDirection="column" marginBottom={1}>
+        {content && (
+          <ChatMessage sender="assistant" name={roleName('assistant')}>
+            {content}
+          </ChatMessage>
+        )}
+        {toolCalls.map((tc: any, i: number) => (
+          <Box key={i} marginLeft={2}>
+            <ToolCall
+              name={tc.name}
+              args={tc.args}
+              status="success"
+              collapsible={true}
+              defaultCollapsed={true}
+            />
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  // --- Regular messages (user, assistant, system) ---
   const rendered = role === 'assistant' && content && content.includes('\n')
     ? renderMarkdown(content)
     : null;
 
-  if (role === 'assistant' && (message as any).tool_calls) {
-    const toolCalls = (message as any).tool_calls.map((tc: any) => ({
-      name: tc.function?.name || 'unknown',
-      args: tc.function?.arguments || '',
-    }));
-    return (
-      <MessageCard role="assistant" content={content} toolCalls={toolCalls} />
-    );
-  }
-
-  if (rendered) {
-    return (
-      <MessageCard role={role} content={''}>
-        {rendered}
-      </MessageCard>
-    );
-  }
-
   return (
-    <MessageCard role={role} content={content} />
+    <ChatMessage
+      sender={mapSender(role)}
+      name={roleName(role)}
+    >
+      {rendered ?? content}
+    </ChatMessage>
   );
 }

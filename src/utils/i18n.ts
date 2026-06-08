@@ -13,6 +13,7 @@ const ZH: TranslationTree = {
     title: 'WindAllay AI 助手',
     tagline: '由 AI 驱动的智能命令行助手',
     langSwitch: '切换语言',
+    langName: '中文',
   },
   menu: {
     startChat: '开始对话',
@@ -44,6 +45,11 @@ const ZH: TranslationTree = {
     editHint: '输入修改 • Enter 确认 • ESC 取消',
     navHint: '↑↓ 导航 • Enter 编辑 • ESC/q 返回',
     placeholder: '输入值...',
+    fetching: '获取模型列表中...',
+    fromEnv: '(来自环境变量)',
+    deleteConfirm: (name: string) => `删除 "${name}"?`,
+    confirmDelete: 'Enter 确认 • ESC 取消',
+    modelSelect: '↑↓·Enter 选择·ESC 返回',
   },
   providerManager: {
     title: '提供商管理器',
@@ -94,6 +100,20 @@ const ZH: TranslationTree = {
   todo: {
     title: '任务',
   },
+  file: {
+    preview: '文件预览',
+    lines: (n: number) => `${n} 行`,
+    truncated: (n: number) => `... 还有 ${n} 行`,
+    error: '错误',
+  },
+  input: {
+    placeholder: '输入消息或 /help...',
+    thinking: '⏳ AI 思考中...',
+  },
+  paginated: {
+    empty: '(空)',
+    page: (n: number, total: number) => `第 ${n}/${total} 页`,
+  },
   setup: {
     title: (name: string) => `项目设置: ${name}`,
     you: '你：',
@@ -109,6 +129,7 @@ const ZH: TranslationTree = {
   },
   settings: {
     title: '设置',
+    page: (n: number, total: number) => `设置 ${n}/${total}`,
     memory: '记忆',
     memoryDesc: '启用对话记忆持久化',
     temperature: '温度',
@@ -117,6 +138,8 @@ const ZH: TranslationTree = {
     maxTokensDesc: '每次回复的最大 Token 数',
     contextLimit: '上下文限制',
     contextLimitDesc: '最大上下文窗口大小',
+    compactionThreshold: '压缩阈值',
+    compactionThresholdDesc: '触发自动压缩的上下文占比 (0=关闭)',
     back: '← 返回主菜单',
     currentConfig: '当前配置：',
     context: (n: number) => `上下文：${n}k tokens`,
@@ -132,6 +155,9 @@ const ZH: TranslationTree = {
     status: '状态',
     ready: '就绪',
     thinking: '思考中...',
+    compacting: '压缩上下文...',
+    compacted: '上下文已压缩',
+    compactResult: (saved: number) => `上下文压缩完成，节省约 ${saved} tokens 空间`,
     streaming: '流式输出',
     toolCall: '使用工具中...',
     error: '错误',
@@ -143,6 +169,8 @@ const ZH: TranslationTree = {
     langChainOff: 'LangChain 未启用',
     mcpServers: (n: number) => `${n} 个 MCP 服务`,
     lspReady: 'LSP 已就绪',
+    compactUnnecessary: '上下文已足够精简，无需压缩。',
+    hint: '输入消息开始对话，/help 查看命令，/compact 压缩上下文',
   },
   dialog: {
     confirm: '确认',
@@ -207,6 +235,7 @@ const EN: TranslationTree = {
     title: 'WindAllay AI Agent',
     tagline: 'Your intelligent CLI companion powered by AI',
     langSwitch: 'Switch Language',
+    langName: 'English',
   },
   menu: {
     startChat: 'Start Chat',
@@ -238,6 +267,11 @@ const EN: TranslationTree = {
     editHint: 'Type to edit • Enter confirm • ESC cancel',
     navHint: '↑↓ Navigate • Enter Edit • ESC/q Back',
     placeholder: 'Enter value...',
+    fetching: 'Fetching models...',
+    fromEnv: '(from env)',
+    deleteConfirm: (name: string) => `Delete "${name}"?`,
+    confirmDelete: 'Enter confirm • ESC cancel',
+    modelSelect: '↑↓·Enter select·ESC back',
   },
   providerManager: {
     title: 'Provider Manager',
@@ -288,6 +322,20 @@ const EN: TranslationTree = {
   todo: {
     title: 'Tasks',
   },
+  file: {
+    preview: 'File Preview',
+    lines: (n: number) => `${n} line${n !== 1 ? 's' : ''}`,
+    truncated: (n: number) => `... ${n} more line${n !== 1 ? 's' : ''}`,
+    error: 'Error',
+  },
+  input: {
+    placeholder: 'Type a message or /help...',
+    thinking: '⏳ AI is thinking...',
+  },
+  paginated: {
+    empty: '(empty)',
+    page: (n: number, total: number) => `Page ${n}/${total}`,
+  },
   setup: {
     title: (name: string) => `Setup: ${name}`,
     you: 'You:',
@@ -311,7 +359,10 @@ const EN: TranslationTree = {
     maxTokensDesc: 'Maximum tokens per response',
     contextLimit: 'Context Limit',
     contextLimitDesc: 'Maximum context window size',
+    compactionThreshold: 'Compaction Threshold',
+    compactionThresholdDesc: 'Context % that triggers auto-compaction (0=off)',
     back: '← Back to Main Menu',
+    page: (n: number, total: number) => `Settings ${n}/${total}`,
     currentConfig: 'Current Config:',
     context: (n: number) => `Context: ${n}k tokens`,
     memoryStatus: (on: boolean) => `Memory: ${on ? 'Enabled' : 'Disabled'}`,
@@ -326,6 +377,9 @@ const EN: TranslationTree = {
     status: 'Status',
     ready: 'Ready',
     thinking: 'Thinking...',
+    compacting: 'Compacting context...',
+    compacted: 'Context compacted',
+    compactResult: (saved: number) => `Context compacted, saved ~${saved} tokens`,
     streaming: 'Streaming',
     toolCall: 'Using tools...',
     error: 'Error',
@@ -337,6 +391,8 @@ const EN: TranslationTree = {
     langChainOff: 'LangChain not enabled',
     mcpServers: (n: number) => `${n} MCP server${n > 1 ? 's' : ''}`,
     lspReady: 'LSP ready',
+    compactUnnecessary: 'Context already concise, no compression needed.',
+    hint: 'Type a message to start, /help for commands, /compact to compress context',
   },
   dialog: {
     confirm: 'Confirm',

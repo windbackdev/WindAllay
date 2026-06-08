@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Text, Box } from 'ink';
 import { useInput } from 'ink';
+import { t } from '../utils/i18n.js';
 import type { FormField } from '../projects/chat-tools.js';
 import { setFormField, markFormField } from '../projects/chat-tools.js';
 
@@ -56,7 +57,7 @@ function CheckboxField({ field, onSubmitMessage }: Props) {
         </Box>
       ))}
       <Box marginTop={1}>
-        <Text dimColor>  ↑↓ navigate • Space toggle • Enter confirm</Text>
+        <Text dimColor>{'  '}{t('nav.upDown')} • Space toggle • Enter confirm</Text>
       </Box>
     </Box>
   );

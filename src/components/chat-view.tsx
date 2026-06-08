@@ -9,16 +9,18 @@ import { getConfig, setConfig, getApiBase, getApiKey } from '../utils/config.js'
 import { getToolRegistry } from '../tools/registry.js';
 import type { ToolContext } from '../tools/registry.js';
 import { ToolExecutor, ToolCallRequest } from '../tools/executor.js';
+import { safeJsonParse } from '../tools/arg-utils.js';
 import { getSkillRegistry } from '../skills/registry.js';
 import { getEnhancedSkillLoader } from '../skills/enhanced.js';
 import { MemoryManager } from '../memory/manager.js';
 import { createContextWindow } from '../context/compressor.js';
 import { getContextStats } from '../context/monitor.js';
+import { countTotalTokens } from '../context/tokenizer.js';
 import { getModels } from '../models/cache.js';
 import { refreshMCPTools } from '../tools/mcp-tools.js';
 import { getMCPServerManager } from '../mcp/mcp-client.js';
 import { getLSPServiceManager } from '../lsp/lsp-client.js';
-import { compactMessages, pruneToolOutputs } from '../context/compactor.js';
+import { compactMessages, compactNow, pruneToolOutputs } from '../context/compactor.js';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTodos, getActiveFormFields, getFormTimeoutFields } from '../projects/chat-tools.js';
@@ -331,7 +333,7 @@ export function ChatView({ onBack }: Props) {
           setSessionTitle('');
           setMessages((prev) => [
             ...prev,
-            { role: 'system', content: '已创建新会话。' } as Message,
+            { role: 'system', content: t('session.created') } as Message,
           ]);
           break;
         case 'session':
@@ -370,7 +372,7 @@ export function ChatView({ onBack }: Props) {
         case 'exit':
         case 'quit':
           process.exit(0);
-          break;
+          return;
         case 'back':
         case 'menu':
           if (onBack) onBack();
@@ -395,6 +397,37 @@ export function ChatView({ onBack }: Props) {
       abortRef.current = false;
 
       if (value.startsWith('/')) {
+        const parts = value.slice(1).split(' ');
+        const command = parts[0].toLowerCase();
+        if (command === 'compact') {
+          // /compact — force-compress context (needs async)
+          const beforeCount = countTotalTokens(messagesRef.current);
+          const compactResult = await compactNow(
+            messagesRef.current,
+            providerRef.current,
+            getConfig().contextLimit,
+          );
+          if (compactResult.summary) {
+            setMessages(compactResult.messages as any);
+            memoryRef.current.clear();
+            for (const m of compactResult.messages) {
+              await memoryRef.current.addMessage(m);
+            }
+            const saved = compactResult.tokensSaved || (beforeCount - countTotalTokens(compactResult.messages));
+            const compactMsg: Message = {
+              role: 'system',
+              content: `${t('chat.compacted')}。${t('chat.compactResult', Math.max(0, saved))}`,
+            };
+            await memoryRef.current.addMessage(compactMsg);
+            setMessages((prev) => [...(compactResult.messages as any), compactMsg]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'system', content: t('chat.compactUnnecessary') } as Message,
+            ]);
+          }
+          return;
+        }
         handleCommand(value);
         return;
       }
@@ -436,6 +469,7 @@ export function ChatView({ onBack }: Props) {
       '  /session     - Browse session history',
       '  /skill       - Select a skill',
       '  /model       - Change model',
+      '  /compact     - Force-compress context to save tokens',
       '  /context     - Show context usage',
       '  /memory      - Show memory info',
       '  /langchain   - Show LangChain memory status',
@@ -575,8 +609,7 @@ export function ChatView({ onBack }: Props) {
   async function handleAiResponse(initialMessages: Message[]) {
     let stepCount = 0;
     let messages = initialMessages;
-    let consecutiveErrors = 0;
-    let lastErrorTool = '';
+    const toolErrorCounts = new Map<string, number>();
 
     const executor = new ToolExecutor(
       getToolRegistry(),
@@ -723,46 +756,68 @@ export function ChatView({ onBack }: Props) {
                 const requests: ToolCallRequest[] = toolCalls.map((tc) => ({
                   id: tc.id,
                   name: tc.name,
-                  args: (() => { try { return JSON.parse(tc.args); } catch { return { raw: tc.args }; } })(),
+                  args: (() => {
+                    const result = safeJsonParse(tc.args);
+                    return result.ok ? (result.value as Record<string, unknown>) : { raw: tc.args };
+                  })(),
                 }));
 
+                // Execute tools, with auto-retry for transient failures
                 const results = await executor.executeBatch(requests);
                 let allSucceeded = true;
 
-                for (const toolMsg of results) {
-                  setMessages((prev) => [...prev, toolMsg as any]);
-                  await memoryRef.current.addMessage(toolMsg as any);
-                  messages = [...messages, toolMsg as any];
+                // Auto-retry failed tools once (skip first failure, add retry)
+                for (let i = 0; i < results.length; i++) {
+                  const toolMsg = results[i];
                   if (typeof toolMsg.content === 'string' && toolMsg.content.startsWith('__execution_error__')) {
-                    allSucceeded = false;
+                    const retryResult = await executor.executeTool(requests[i]);
+                    if (typeof retryResult.content === 'string' && retryResult.content.startsWith('__execution_error__')) {
+                      // Both attempts failed — expose the final error
+                      setMessages((prev) => [...prev, retryResult as any]);
+                      await memoryRef.current.addMessage(retryResult as any);
+                      messages = [...messages, retryResult as any];
+                      allSucceeded = false;
+                    } else {
+                      // Retry succeeded — use retry result
+                      setMessages((prev) => [...prev, retryResult as any]);
+                      await memoryRef.current.addMessage(retryResult as any);
+                      messages = [...messages, retryResult as any];
+                    }
+                  } else {
+                    setMessages((prev) => [...prev, toolMsg as any]);
+                    await memoryRef.current.addMessage(toolMsg as any);
+                    messages = [...messages, toolMsg as any];
                   }
                 }
 
                 messages = pruneToolOutputs(messages) as Message[];
 
                 if (!allSucceeded) {
-                  consecutiveErrors++;
-                  const firstFailedTool = requests[0]?.name ?? '';
-                  if (firstFailedTool === lastErrorTool) {
-                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                      const stopMsg: Message = {
-                        role: 'system',
-                        content: `Tool "${firstFailedTool}" failed ${consecutiveErrors} consecutive times. Stop using this tool and respond with text.`,
-                      };
-                      setMessages((prev) => [...prev, stopMsg]);
-                      await memoryRef.current.addMessage(stopMsg);
-                      messages = [...messages, stopMsg];
-                      stepCount++;
-                      setStatus('thinking');
-                      break;
+                  // Track errors per-tool-name (not just first tool in batch)
+                  for (let i = 0; i < results.length; i++) {
+                    const content = results[i].content;
+                    if (typeof content === 'string' && content.startsWith('__execution_error__')) {
+                      const failedName = requests[i]?.name ?? 'unknown';
+                      const count = (toolErrorCounts.get(failedName) || 0) + 1;
+                      toolErrorCounts.set(failedName, count);
+
+                      if (count >= MAX_CONSECUTIVE_ERRORS) {
+                        const stopMsg: Message = {
+                          role: 'system',
+                          content: `Tool "${failedName}" failed ${count} consecutive times. Stop using this tool and respond with text.`,
+                        };
+                        setMessages((prev) => [...prev, stopMsg]);
+                        await memoryRef.current.addMessage(stopMsg);
+                        messages = [...messages, stopMsg];
+                        stepCount++;
+                        setStatus('thinking');
+                        break;
+                      }
                     }
-                  } else {
-                    consecutiveErrors = 1;
-                    lastErrorTool = firstFailedTool;
                   }
                 } else {
-                  consecutiveErrors = 0;
-                  lastErrorTool = '';
+                  // Clear all error counts on a fully successful batch
+                  toolErrorCounts.clear();
                 }
 
                 stepCount++;
@@ -844,7 +899,7 @@ export function ChatView({ onBack }: Props) {
         <Card borderColor="cyan" padding={1} marginBottom={1}>
           <Text bold color="cyan">{t('provider.title')}</Text>
         </Card>
-        <Box flexDirection="column" width={56}>
+        <Box flexDirection="column" width={Math.min(columns - 4, 60)}>
           {providerList.map((p: any, i: number) => {
             const sel = providerIdx === i;
             return (
@@ -883,23 +938,28 @@ export function ChatView({ onBack }: Props) {
   }
 
   return (
-    <Box flexDirection="column" flexGrow={1}>
+    <Box flexDirection="column" flexGrow={1} width="100%">
       <Box flexGrow={1} flexDirection="column">
         {messages.length === 0 && (
-          <Card borderColor="gray" padding={2} marginBottom={1} fillWidth>
-            <Text>
-              <Text bold color="cyan">{t('chat.welcome')}</Text>
-              {'\n'}
-              <Text dimColor>{t('chat.subtitle')}</Text>
-              {'\n'}
-              <Text dimColor>
-                LangChain: {langChainReady ? '✓' : '○'} {' '}
-                MCP: {getMCPServerManager().getAllClients().length} {' '}
-                LSP: ready
-              </Text>
-              {'\n'}
-              <Text dimColor>输入消息开始对话，或 /help 查看命令，/session 浏览历史</Text>
-            </Text>
+          <Card borderColor="gray" padding={1} marginBottom={1} fillWidth>
+            <Box flexDirection="column">
+              <Box>
+                <Text bold color="cyan">{t('chat.welcome')}</Text>
+              </Box>
+              <Box>
+                <Text dimColor>{t('chat.subtitle')}</Text>
+              </Box>
+              <Box marginTop={1}>
+                <Text dimColor>
+                  LangChain: {langChainReady ? '✓' : '○'} {' '}
+                  MCP: {getMCPServerManager().getAllClients().length} {' '}
+                  LSP: ready
+                </Text>
+              </Box>
+              <Box>
+                <Text dimColor>{t('chat.hint')}</Text>
+              </Box>
+            </Box>
           </Card>
         )}
         {setupFiles.length > 0 && !setupInjectedRef.current && (
@@ -944,32 +1004,41 @@ export function ChatView({ onBack }: Props) {
         />
       )}
       {todoItems.length > 0 && (
-        <Card borderColor="cyan" padding={0} marginBottom={0} width={columns - 2}>
+        <Card borderColor="cyan" padding={0} marginBottom={0} fillWidth>
           <Text bold color="cyan"> {t('todo.title')} ({todoItems.filter((t) => t.done).length}/{todoItems.length})</Text>
           <Text dimColor>  {todoItems.map((t) => `${t.done ? '✓' : '○'} ${t.description}`).join('  |  ')}</Text>
         </Card>
       )}
-      <Card borderColor="gray" padding={1} marginBottom={0} width={columns - 2}>
-        <StatusLine
-          model={modelName}
-          contextStats={contextStats}
-          status={status}
-          messageCount={messageCount}
-          executingTool={executingTool}
-        />
-        <Box marginLeft={2}>
-          <Text dimColor>
-            {sessionTitle && <Text> · {sessionTitle}</Text>}
-            {langChainReady && <Text color="green"> [LC]</Text>}
-            {getMCPServerManager().getAllClients().length > 0 && <Text color="yellow"> [MCP]</Text>}
-          </Text>
+      <Card borderColor="gray" padding={1} marginBottom={0} fillWidth>
+        <Box flexDirection="column">
+          <Box>
+            <StatusLine
+              model={modelName}
+              contextStats={contextStats}
+              status={status}
+              messageCount={messageCount}
+              executingTool={executingTool}
+            />
+          </Box>
+          <Box flexDirection="row" marginLeft={1}>
+            <Text dimColor>
+              {sessionTitle && <Text> · {sessionTitle}</Text>}
+              {langChainReady && <Text color="green"> [LC]</Text>}
+              {getMCPServerManager().getAllClients().length > 0 && <Text color="yellow"> [MCP]</Text>}
+            </Text>
+          </Box>
+          <Box marginY={1}>
+            <Text dimColor>{'─'.repeat(30)}</Text>
+          </Box>
+          <Box>
+            <InputBox
+              onSubmit={handleSubmit}
+              disabled={status !== 'idle' || showSkills || showModels || showSessions || showProviders}
+              placeholder={t('input.placeholder')}
+              focus={inputFocus && status === 'idle'}
+            />
+          </Box>
         </Box>
-        <InputBox
-          onSubmit={handleSubmit}
-           disabled={status !== 'idle' || showSkills || showModels || showSessions || showProviders}
-          placeholder="输入消息或 /help..."
-          focus={inputFocus && status === 'idle'}
-        />
       </Card>
     </Box>
   );

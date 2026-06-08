@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Text, Box } from 'ink';
 import { useInput } from 'ink';
 import { Card } from './card.js';
+import { t } from '../utils/i18n.js';
 
 interface SessionInfo {
   id: string;
@@ -20,9 +21,8 @@ interface Props {
 }
 
 export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, onClose }: Props) {
-  // Add "New Session" as the first item
   const items = [
-    { id: '__new__', title: '+ 新建对话', model: '', startedAt: '', messageCount: 0 },
+    { id: '__new__', title: t('session.newSession'), model: '', startedAt: '', messageCount: 0 },
     ...sessions.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
   ];
 
@@ -40,21 +40,13 @@ export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, 
       return;
     }
 
-    if (key.upArrow) {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    } else if (key.downArrow) {
-      setSelectedIndex((i) => Math.min(items.length - 1, i + 1));
-    } else if (key.return) {
+    if (key.upArrow) setSelectedIndex((i) => Math.max(0, i - 1));
+    else if (key.downArrow) setSelectedIndex((i) => Math.min(items.length - 1, i + 1));
+    else if (key.return) { const item = items[selectedIndex]; if (item) onSelect(item.id); }
+    else if (input === 'd' || input === 'D') {
       const item = items[selectedIndex];
-      if (item) onSelect(item.id);
-    } else if (input === 'd' || input === 'D') {
-      const item = items[selectedIndex];
-      if (item && item.id !== '__new__' && item.id !== currentSessionId) {
-        setConfirmDelete(item.id);
-      }
-    } else if (key.escape || input === 'q') {
-      onClose();
-    }
+      if (item && item.id !== '__new__' && item.id !== currentSessionId) setConfirmDelete(item.id);
+    } else if (key.escape || input === 'q') onClose();
   });
 
   const formatTime = (iso: string) => {
@@ -62,21 +54,21 @@ export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, 
     const d = new Date(iso);
     const now = new Date();
     const diff = now.getTime() - d.getTime();
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-    return `${Math.floor(diff / 86400000)} 天前`;
+    if (diff < 60000) return t('session.timeAgo.justNow');
+    if (diff < 3600000) return t('session.timeAgo.minutesAgo', Math.floor(diff / 60000));
+    if (diff < 86400000) return t('session.timeAgo.hoursAgo', Math.floor(diff / 3600000));
+    return t('session.timeAgo.daysAgo', Math.floor(diff / 86400000));
   };
 
   return (
     <Box flexDirection="column" padding={1}>
       <Card borderColor="cyan" padding={0} marginBottom={1} fillWidth>
-        <Text bold color="cyan"> 📋 对话历史 ({sessions.length} 个会话)</Text>
+        <Text bold color="cyan"> 📋 {t('session.title')} ({sessions.length})</Text>
       </Card>
 
       {confirmDelete && (
         <Box marginBottom={1}>
-          <Text color="red">确认删除此会话？(y/n)</Text>
+          <Text color="red">{t('session.confirmDelete')}</Text>
         </Box>
       )}
 
@@ -96,7 +88,7 @@ export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, 
             );
           }
 
-          const title = item.title || `会话 ${item.id.slice(-6)}`;
+          const title = item.title || `${t('session.title')} ${item.id.slice(-6)}`;
           const timeStr = formatTime(item.startedAt);
 
           return (
@@ -105,10 +97,10 @@ export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, 
                 <Text color={isSelected ? 'white' : 'gray'} bold={isSelected}>
                   {isSelected ? '❯ ' : '  '}
                   {title}
-                  {isCurrent && <Text color="green"> (当前)</Text>}
+                  {isCurrent && <Text color="green"> ({t('session.current')})</Text>}
                 </Text>
                 <Text dimColor>
-                  {'    '}{item.model} · {item.messageCount} 条消息 · {timeStr}
+                  {'    '}{item.model} · {t('session.messagesCount', item.messageCount)} · {timeStr}
                 </Text>
               </Box>
             </Box>
@@ -117,7 +109,7 @@ export function SessionPicker({ sessions, currentSessionId, onSelect, onDelete, 
       </Box>
 
       <Box>
-        <Text dimColor>↑↓ 导航 · Enter 选择 · d 删除 · ESC/q 关闭</Text>
+        <Text dimColor>{t('session.hint')}</Text>
       </Box>
     </Box>
   );

@@ -59,7 +59,7 @@ export function ProviderPage({ onBack }: Props) {
   const current = allProviders[selectedIdx] || defaultProvider;
 
   function currFieldVal(k: string): string {
-    if (k === 'apiKey') return current.apiKey || (process.env.WINDALLAY_API_KEY ? '(from env)' : '');
+    if (k === 'apiKey') return current.apiKey || (process.env.WINDALLAY_API_KEY ? t('provider.fromEnv') : '');
     if (k === 'maxTokens') return String(config.maxTokens);
     if (k === 'temperature') return String(config.temperature);
     return (current as any)[k] || '';
@@ -99,9 +99,9 @@ export function ProviderPage({ onBack }: Props) {
       const { getModels } = await import('../models/cache.js');
       const result = await getModels(true);
       setModels(result as any);
-      setStatusMsg(`✓ ${result.length} models available`);
+      setStatusMsg(`✓ ${result.length} ${t('provider.connected')}`);
     } catch (err: any) {
-      setStatusMsg(`✗ Failed to fetch models: ${err.message}`);
+      setStatusMsg(`✗ ${t('provider.failed')} ${err.message}`);
       setModels([]);
     }
   }, []);
@@ -150,7 +150,7 @@ export function ProviderPage({ onBack }: Props) {
         const f = FIELD_KEYS[fieldSelected];
         if (f === 'model') {
           // Fetch models from API and show picker
-          setStatusMsg('Fetching models...');
+          setStatusMsg(t('provider.fetching'));
           setView('modelPicker');
           setModelPickIdx(0);
           fetchModelsForPicker();
@@ -215,7 +215,7 @@ export function ProviderPage({ onBack }: Props) {
         </Card>
         {models.length === 0 ? (
           <Card borderColor="gray" padding={1} marginBottom={1}>
-            <Text dimColor>Fetching models...</Text>
+            <Text dimColor>{t('provider.fetching')}</Text>
           </Card>
         ) : (
           <Box flexDirection="column" width={56}>
@@ -236,7 +236,7 @@ export function ProviderPage({ onBack }: Props) {
         )}
         <CardDivider />
         <Card borderColor="gray" padding={0}>
-          <Text dimColor>↑↓·Enter select·ESC back</Text>
+          <Text dimColor>{t('provider.modelSelect')}</Text>
         </Card>
       </FullScreen>
     );
@@ -265,7 +265,7 @@ export function ProviderPage({ onBack }: Props) {
     return (
       <FullScreen justifyContent="center">
         <Card borderColor="red" padding={1} marginBottom={1}>
-          <Text color="red">Delete "{allProviders[selectedIdx]?.name}"?</Text>
+          <Text color="red">{t('provider.deleteConfirm', allProviders[selectedIdx]?.name ?? '')}</Text>
         </Card>
         <Card borderColor="gray" padding={1}>
           <Text dimColor>Enter confirm • ESC cancel</Text>

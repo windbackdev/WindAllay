@@ -39,8 +39,8 @@ function safePath(base: string, input: string): string {
 }
 
 export const ShellTool: ToolHandler = async (args, ctx) => {
-  const command = args.command as string;
-  const timeout = (args.timeout as number) ?? 30000;
+  const command = String(args.command ?? '');
+  const timeout = typeof args.timeout === 'number' ? args.timeout : (Number(args.timeout) || 120000);
 
   if (!command) return JSON.stringify({ error: 'No command provided' });
   if (!ctx.allowBash) return JSON.stringify({ error: 'Command execution not allowed' });
@@ -116,9 +116,9 @@ function readSingleFile(filePath: string, offset: number, limit: number, cwd: st
 }
 
 export const ReadTool: ToolHandler = async (args, ctx) => {
-  const filePath = args.file_path as string;
-  const offset = (args.offset as number) ?? 0;
-  const limit = (args.limit as number) ?? 2000;
+  const filePath = String(args.file_path ?? '');
+  const offset = typeof args.offset === 'number' ? args.offset : (Number(args.offset) || 0);
+  const limit = typeof args.limit === 'number' ? args.limit : (Number(args.limit) || 2000);
 
   if (!filePath) return JSON.stringify({ error: 'No file path provided' });
 
@@ -140,8 +140,8 @@ export const ReadMultipleTool: ToolHandler = async (args, ctx) => {
 };
 
 export const WriteTool: ToolHandler = async (args, ctx) => {
-  const filePath = args.file_path as string;
-  const content = args.content as string;
+  const filePath = String(args.file_path ?? '');
+  const content = String(args.content ?? '');
 
   if (!filePath) return JSON.stringify({ error: 'No file path provided' });
   if (content === undefined) return JSON.stringify({ error: 'No content provided' });
@@ -152,9 +152,9 @@ export const WriteTool: ToolHandler = async (args, ctx) => {
 };
 
 export const EditTool: ToolHandler = async (args, ctx) => {
-  const filePath = args.file_path as string;
-  const oldString = args.old_string as string;
-  const newString = args.new_string as string;
+  const filePath = String(args.file_path ?? '');
+  const oldString = String(args.old_string ?? '');
+  const newString = String(args.new_string ?? '');
 
   if (!filePath || !oldString || newString === undefined) {
     return JSON.stringify({ error: 'Missing required parameters (file_path, old_string, new_string)' });
@@ -174,14 +174,29 @@ export const EditTool: ToolHandler = async (args, ctx) => {
 
 const MAX_GLOB_RESULTS = 100;
 
+/** Directories to skip when globbing — avoids big non-source dirs */
+const IGNORE_DIRS = new Set([
+  'node_modules', '.git', 'dist', 'build', '.next', '.nuxt',
+  '.turbo', '.cache', '.venv', 'venv', '__pycache__', '.mypy_cache',
+  '.pytest_cache', '.vercel', 'target', '.direnv', 'out', 'coverage',
+]);
+
+function shouldSkipDir(name: string): boolean {
+  return IGNORE_DIRS.has(name) || name.startsWith('.');
+}
+
 function walkDir(dir: string, ext: string, maxResults = MAX_GLOB_RESULTS): string[] {
   const results: string[] = [];
   try {
-    const entries = readdirSync(dir, { withFileTypes: true, recursive: true });
+    const entries = readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (results.length >= maxResults) break;
-      if (entry.isFile()) {
-        const fullPath = join(dir, entry.name);
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!shouldSkipDir(entry.name)) {
+          results.push(...walkDir(fullPath, ext, maxResults - results.length));
+        }
+      } else if (entry.isFile()) {
         if (!ext || fullPath.endsWith(ext)) {
           results.push(fullPath);
         }
@@ -269,7 +284,7 @@ export const WebSearchTool: ToolHandler = async (args) => {
 };
 
 export const WebFetchTool: ToolHandler = async (args) => {
-  const url = args.url as string;
+  const url = String(args.url ?? '');
   if (!url) return JSON.stringify({ error: 'No URL provided' });
 
   try {
